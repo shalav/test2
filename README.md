@@ -1,8 +1,6 @@
 # Stock Dashboard
 
-A simple static web app that displays information for NVDA and TSLA.
+This project provides a very small static web application showing sample information for two stock tickers: **NVDA** and **TSLA**. It displays example stats, a small options chain and short news items for each ticker.
 
 ## Usage
-
-Open `webapp/index.html` in your browser to view the dashboard. It contains sample data with
-price charts, options chain tables, and links to sample news for each ticker.
+Open `webapp/index.html` in your browser. All data is included in the JavaScript file so no server is required.
