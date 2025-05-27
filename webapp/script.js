@@ -1,81 +1,106 @@
-const data = {
-    NVDA: {
-        prices: [440, 442, 450, 455, 460, 458, 462],
-        news: {
-            title: "AI chip demand keeps rising",
-            link: "https://example.com/nvda-news"
-        }
-    },
-    TSLA: {
-        prices: [250, 252, 251, 255, 257, 260, 259],
-        news: {
-            title: "New software update announced",
-            link: "https://example.com/tsla-news"
-        }
-    }
-};
+const STOCK_API_KEY = 'YOUR_ALPHA_VANTAGE_KEY';
+const NEWS_API_KEY = 'YOUR_NEWS_API_KEY';
+const symbols = ['NVDA', 'TSLA'];
 
-function createChart(ctx, prices) {
-    const maxPrice = Math.max(...prices);
-    const minPrice = Math.min(...prices);
-    const stepX = ctx.canvas.width / (prices.length - 1);
-    ctx.beginPath();
-    ctx.moveTo(0, ctx.canvas.height - (prices[0] - minPrice) / (maxPrice - minPrice) * ctx.canvas.height);
-    for (let i = 1; i < prices.length; i++) {
-        const x = i * stepX;
-        const y = ctx.canvas.height - (prices[i] - minPrice) / (maxPrice - minPrice) * ctx.canvas.height;
-        ctx.lineTo(x, y);
-    }
-    ctx.strokeStyle = '#007bff';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+async function fetchStats(symbol) {
+    const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${STOCK_API_KEY}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const q = data['Global Quote'] || {};
+    return {
+        price: parseFloat(q['05. price']) || 0,
+        open: parseFloat(q['02. open']) || 0,
+        high: parseFloat(q['03. high']) || 0,
+        low: parseFloat(q['04. low']) || 0,
+        volume: parseInt(q['06. volume'] || '0', 10)
+    };
 }
 
-function renderTicker(ticker) {
-    const info = data[ticker];
-    const prices = info.prices;
-    const currentPrice = prices[prices.length - 1];
-    const yesterdayClose = prices[prices.length - 2];
-    const change = ((currentPrice - yesterdayClose) / yesterdayClose * 100).toFixed(2);
+async function fetchOptions(symbol) {
+    const url = `https://query2.finance.yahoo.com/v7/finance/options/${symbol}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const opts = data.optionChain?.result?.[0]?.options?.[0];
+    if (!opts) return [];
+    const calls = opts.calls.slice(0, 3);
+    const puts = opts.puts.slice(0, 3);
+    return calls.map((c, idx) => ({
+        strike: c.strike,
+        call: c.lastPrice,
+        put: (puts[idx] ? puts[idx].lastPrice : 0)
+    }));
+}
 
+async function fetchNews(symbol) {
+    const url = `https://newsapi.org/v2/everything?q=${symbol}&apiKey=${NEWS_API_KEY}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return (data.articles || []).slice(0, 3).map(a => ({
+        headline: a.title,
+        description: a.description || ''
+    }));
+}
+
+function renderStats(stats) {
+    const div = document.createElement('div');
+    div.className = 'stats';
+    div.innerHTML = `
+        <strong>Price:</strong> $${stats.price.toFixed(2)}
+        | <strong>Open:</strong> $${stats.open.toFixed(2)}
+        | <strong>High:</strong> $${stats.high.toFixed(2)}
+        | <strong>Low:</strong> $${stats.low.toFixed(2)}
+        | <strong>Volume:</strong> ${stats.volume.toLocaleString()}
+    `;
+    return div;
+}
+
+function renderOptions(options) {
+    const table = document.createElement('table');
+    table.className = 'options-table';
+    const header = document.createElement('tr');
+    header.innerHTML = '<th>Strike</th><th>Call</th><th>Put</th>';
+    table.appendChild(header);
+    options.forEach(opt => {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>$${opt.strike}</td><td>$${opt.call}</td><td>$${opt.put}</td>`;
+        table.appendChild(row);
+    });
+    return table;
+}
+
+function renderNews(newsItems) {
+    const div = document.createElement('div');
+    newsItems.forEach(item => {
+        const n = document.createElement('div');
+        n.className = 'news-item';
+        n.innerHTML = `<strong>${item.headline}:</strong> ${item.description}`;
+        div.appendChild(n);
+    });
+    return div;
+}
+
+function renderTicker(symbol, info) {
     const container = document.createElement('div');
     container.className = 'ticker';
 
     const title = document.createElement('h2');
-    title.textContent = ticker;
+    title.textContent = symbol;
     container.appendChild(title);
 
-    const canvas = document.createElement('canvas');
-    canvas.width = 400;
-    canvas.height = 200;
-    canvas.className = 'chart';
-    container.appendChild(canvas);
-    const ctx = canvas.getContext('2d');
-    createChart(ctx, prices);
+    container.appendChild(renderStats(info.stats));
+    container.appendChild(renderOptions(info.options));
+    container.appendChild(renderNews(info.news));
 
-    const priceDiv = document.createElement('div');
-    priceDiv.innerHTML = `<strong>Current Price:</strong> $${currentPrice.toFixed(2)} (${change}% from yesterday)`;
-    container.appendChild(priceDiv);
-
-    const optionsTable = document.createElement('table');
-    optionsTable.className = 'options-table';
-    const header = document.createElement('tr');
-    header.innerHTML = '<th>Strike</th><th>Premium</th>';
-    optionsTable.appendChild(header);
-    for (let i = -20; i <= 20; i++) {
-        if (i === 0) continue;
-        const strike = (currentPrice + i).toFixed(2);
-        const row = document.createElement('tr');
-        row.innerHTML = `<td>$${strike}</td><td>$0.50</td>`;
-        optionsTable.appendChild(row);
-    }
-    container.appendChild(optionsTable);
-
-    const newsDiv = document.createElement('div');
-    newsDiv.innerHTML = `<strong>News:</strong> <a href="${info.news.link}">${info.news.title}</a>`;
-    container.appendChild(newsDiv);
-
-    document.getElementById('ticker-container').appendChild(container);
+    document.getElementById('tickers').appendChild(container);
 }
 
-['NVDA', 'TSLA'].forEach(renderTicker);
+async function loadTicker(symbol) {
+    const [stats, options, news] = await Promise.all([
+        fetchStats(symbol),
+        fetchOptions(symbol),
+        fetchNews(symbol)
+    ]);
+    renderTicker(symbol, { stats, options, news });
+}
+
+symbols.forEach(loadTicker);
