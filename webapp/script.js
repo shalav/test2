@@ -1,81 +1,81 @@
-const data = {
+const tickers = {
     NVDA: {
-        prices: [440, 442, 450, 455, 460, 458, 462],
-        news: {
-            title: "AI chip demand keeps rising",
-            link: "https://example.com/nvda-news"
-        }
+        stats: { price: 465.12, open: 460.0, high: 470.0, low: 458.5, volume: 12000000 },
+        options: [
+            { strike: 440, call: 30.2, put: 5.1 },
+            { strike: 460, call: 18.5, put: 8.3 },
+            { strike: 480, call: 9.7, put: 14.6 }
+        ],
+        news: [
+            { headline: 'New AI partnership announced', description: 'Nvidia partners with major cloud provider to accelerate AI workloads.' },
+            { headline: 'Earnings beat expectations', description: 'Quarterly earnings and revenue exceed analyst forecasts.' }
+        ]
     },
     TSLA: {
-        prices: [250, 252, 251, 255, 257, 260, 259],
-        news: {
-            title: "New software update announced",
-            link: "https://example.com/tsla-news"
-        }
+        stats: { price: 255.78, open: 250.2, high: 258.0, low: 249.5, volume: 15000000 },
+        options: [
+            { strike: 240, call: 28.1, put: 6.8 },
+            { strike: 260, call: 15.4, put: 10.2 },
+            { strike: 280, call: 7.0, put: 18.7 }
+        ],
+        news: [
+            { headline: 'Software update rolls out', description: 'Tesla releases major OTA update with new features for drivers.' },
+            { headline: 'Gigafactory expansion', description: 'Tesla plans additional production capacity at its existing Gigafactory.' }
+        ]
     }
 };
 
-function createChart(ctx, prices) {
-    const maxPrice = Math.max(...prices);
-    const minPrice = Math.min(...prices);
-    const stepX = ctx.canvas.width / (prices.length - 1);
-    ctx.beginPath();
-    ctx.moveTo(0, ctx.canvas.height - (prices[0] - minPrice) / (maxPrice - minPrice) * ctx.canvas.height);
-    for (let i = 1; i < prices.length; i++) {
-        const x = i * stepX;
-        const y = ctx.canvas.height - (prices[i] - minPrice) / (maxPrice - minPrice) * ctx.canvas.height;
-        ctx.lineTo(x, y);
-    }
-    ctx.strokeStyle = '#007bff';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+function renderStats(stats) {
+    const div = document.createElement('div');
+    div.className = 'stats';
+    div.innerHTML = `
+        <strong>Price:</strong> $${stats.price.toFixed(2)}
+        | <strong>Open:</strong> $${stats.open.toFixed(2)}
+        | <strong>High:</strong> $${stats.high.toFixed(2)}
+        | <strong>Low:</strong> $${stats.low.toFixed(2)}
+        | <strong>Volume:</strong> ${stats.volume.toLocaleString()}
+    `;
+    return div;
 }
 
-function renderTicker(ticker) {
-    const info = data[ticker];
-    const prices = info.prices;
-    const currentPrice = prices[prices.length - 1];
-    const yesterdayClose = prices[prices.length - 2];
-    const change = ((currentPrice - yesterdayClose) / yesterdayClose * 100).toFixed(2);
+function renderOptions(options) {
+    const table = document.createElement('table');
+    table.className = 'options-table';
+    const header = document.createElement('tr');
+    header.innerHTML = '<th>Strike</th><th>Call</th><th>Put</th>';
+    table.appendChild(header);
+    options.forEach(opt => {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>$${opt.strike}</td><td>$${opt.call}</td><td>$${opt.put}</td>`;
+        table.appendChild(row);
+    });
+    return table;
+}
 
+function renderNews(newsItems) {
+    const div = document.createElement('div');
+    newsItems.forEach(item => {
+        const n = document.createElement('div');
+        n.className = 'news-item';
+        n.innerHTML = `<strong>${item.headline}:</strong> ${item.description}`;
+        div.appendChild(n);
+    });
+    return div;
+}
+
+function renderTicker(symbol, info) {
     const container = document.createElement('div');
     container.className = 'ticker';
 
     const title = document.createElement('h2');
-    title.textContent = ticker;
+    title.textContent = symbol;
     container.appendChild(title);
 
-    const canvas = document.createElement('canvas');
-    canvas.width = 400;
-    canvas.height = 200;
-    canvas.className = 'chart';
-    container.appendChild(canvas);
-    const ctx = canvas.getContext('2d');
-    createChart(ctx, prices);
+    container.appendChild(renderStats(info.stats));
+    container.appendChild(renderOptions(info.options));
+    container.appendChild(renderNews(info.news));
 
-    const priceDiv = document.createElement('div');
-    priceDiv.innerHTML = `<strong>Current Price:</strong> $${currentPrice.toFixed(2)} (${change}% from yesterday)`;
-    container.appendChild(priceDiv);
-
-    const optionsTable = document.createElement('table');
-    optionsTable.className = 'options-table';
-    const header = document.createElement('tr');
-    header.innerHTML = '<th>Strike</th><th>Premium</th>';
-    optionsTable.appendChild(header);
-    for (let i = -20; i <= 20; i++) {
-        if (i === 0) continue;
-        const strike = (currentPrice + i).toFixed(2);
-        const row = document.createElement('tr');
-        row.innerHTML = `<td>$${strike}</td><td>$0.50</td>`;
-        optionsTable.appendChild(row);
-    }
-    container.appendChild(optionsTable);
-
-    const newsDiv = document.createElement('div');
-    newsDiv.innerHTML = `<strong>News:</strong> <a href="${info.news.link}">${info.news.title}</a>`;
-    container.appendChild(newsDiv);
-
-    document.getElementById('ticker-container').appendChild(container);
+    document.getElementById('tickers').appendChild(container);
 }
 
-['NVDA', 'TSLA'].forEach(renderTicker);
+Object.entries(tickers).forEach(([symbol, info]) => renderTicker(symbol, info));
