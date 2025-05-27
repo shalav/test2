@@ -1,29 +1,45 @@
-const tickers = {
-    NVDA: {
-        stats: { price: 465.12, open: 460.0, high: 470.0, low: 458.5, volume: 12000000 },
-        options: [
-            { strike: 440, call: 30.2, put: 5.1 },
-            { strike: 460, call: 18.5, put: 8.3 },
-            { strike: 480, call: 9.7, put: 14.6 }
-        ],
-        news: [
-            { headline: 'New AI partnership announced', description: 'Nvidia partners with major cloud provider to accelerate AI workloads.' },
-            { headline: 'Earnings beat expectations', description: 'Quarterly earnings and revenue exceed analyst forecasts.' }
-        ]
-    },
-    TSLA: {
-        stats: { price: 255.78, open: 250.2, high: 258.0, low: 249.5, volume: 15000000 },
-        options: [
-            { strike: 240, call: 28.1, put: 6.8 },
-            { strike: 260, call: 15.4, put: 10.2 },
-            { strike: 280, call: 7.0, put: 18.7 }
-        ],
-        news: [
-            { headline: 'Software update rolls out', description: 'Tesla releases major OTA update with new features for drivers.' },
-            { headline: 'Gigafactory expansion', description: 'Tesla plans additional production capacity at its existing Gigafactory.' }
-        ]
-    }
-};
+const STOCK_API_KEY = 'YOUR_ALPHA_VANTAGE_KEY';
+const NEWS_API_KEY = 'YOUR_NEWS_API_KEY';
+const symbols = ['NVDA', 'TSLA'];
+
+async function fetchStats(symbol) {
+    const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${STOCK_API_KEY}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const q = data['Global Quote'] || {};
+    return {
+        price: parseFloat(q['05. price']) || 0,
+        open: parseFloat(q['02. open']) || 0,
+        high: parseFloat(q['03. high']) || 0,
+        low: parseFloat(q['04. low']) || 0,
+        volume: parseInt(q['06. volume'] || '0', 10)
+    };
+}
+
+async function fetchOptions(symbol) {
+    const url = `https://query2.finance.yahoo.com/v7/finance/options/${symbol}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const opts = data.optionChain?.result?.[0]?.options?.[0];
+    if (!opts) return [];
+    const calls = opts.calls.slice(0, 3);
+    const puts = opts.puts.slice(0, 3);
+    return calls.map((c, idx) => ({
+        strike: c.strike,
+        call: c.lastPrice,
+        put: (puts[idx] ? puts[idx].lastPrice : 0)
+    }));
+}
+
+async function fetchNews(symbol) {
+    const url = `https://newsapi.org/v2/everything?q=${symbol}&apiKey=${NEWS_API_KEY}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return (data.articles || []).slice(0, 3).map(a => ({
+        headline: a.title,
+        description: a.description || ''
+    }));
+}
 
 function renderStats(stats) {
     const div = document.createElement('div');
@@ -78,4 +94,13 @@ function renderTicker(symbol, info) {
     document.getElementById('tickers').appendChild(container);
 }
 
-Object.entries(tickers).forEach(([symbol, info]) => renderTicker(symbol, info));
+async function loadTicker(symbol) {
+    const [stats, options, news] = await Promise.all([
+        fetchStats(symbol),
+        fetchOptions(symbol),
+        fetchNews(symbol)
+    ]);
+    renderTicker(symbol, { stats, options, news });
+}
+
+symbols.forEach(loadTicker);
